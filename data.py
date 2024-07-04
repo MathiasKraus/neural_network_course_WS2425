@@ -1,15 +1,17 @@
+import os
 from pathlib import Path
 from PIL import Image
 from typing import Union, Optional
 import torch
-from torch.utils.data import Dataset, DataLoader
+import pandas as pd
+from torch.utils.data import Dataset, DataLoader, random_split
 from lightning.pytorch import LightningDataModule
 from lightning.pytorch.demos.mnist_datamodule import MNIST
-from torch.utils.data import DataLoader, random_split
 from torchvision import transforms, datasets
 from torchvision.datasets import ImageFolder, VOCDetection
 from torchvision.datasets.utils import download_and_extract_archive
 from torchvision.transforms.functional import resize
+from transformers import GPT2Tokenizer
 
 import warnings
 warnings.filterwarnings("ignore", ".*Consider increasing the value of the `num_workers` argument*")
@@ -219,4 +221,79 @@ class VOCDataModule(LightningDataModule):
     
     def test_dataloader(self):
         return DataLoader(self.voc_val, batch_size=self.batch_size, shuffle=False, num_workers=self.num_workers, collate_fn=self.collate_fn)
+
+
+#######################
+#### JokesDataset #####
+#######################
+
+class JokesDataset(Dataset):
+    def __init__(self, file_path, max_length=512):
+        self.jokes = pd.read_csv(file_path)['Joke'].tolist()
+        self.max_length = max_length
+        self.tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
+        self.tokenizer.pad_token = self.tokenizer.eos_token  # Add padding token
+
+    def __len__(self):
+        return len(self.jokes)
+    
+    def __getitem__(self, idx):
+        joke = self.jokes[idx]
+        encoding = self.tokenizer(joke, return_tensors='pt', padding=True, truncation=True, max_length=self.max_length)
+        input_ids = encoding['input_ids'].squeeze(0)  # Remove batch dimension
+        attention_mask = encoding['attention_mask'].squeeze(0)  # Remove batch dimension
+        return input_ids, attention_mask
+
+class TextCollate:
+    def __init__(self, tokenizer, max_length=512):
+        self.tokenizer = tokenizer
+        self.max_length = max_length
+
+    def __call__(self, batch):
+        input_ids = [item[0] for item in batch]
+        attention_masks = [item[1] for item in batch]
         
+        # Pad sequences to the same length
+        input_ids = torch.nn.utils.rnn.pad_sequence(input_ids, batch_first=True, padding_value=self.tokenizer.pad_token_id)
+        attention_masks = torch.nn.utils.rnn.pad_sequence(attention_masks, batch_first=True, padding_value=0)
+        
+        return input_ids, attention_masks
+
+class JokesDataModule(LightningDataModule):
+    def __init__(self, data_dir='data', batch_size=8, max_length=512, train_val_test_split=[0.8, 0.1, 0.1]):
+        super().__init__()
+        self.data_dir = data_dir
+        self.data_file = os.path.join(data_dir, 'shortjokes.csv')
+        self.batch_size = batch_size
+        self.max_length = max_length
+        self.train_val_test_split = train_val_test_split
+        
+        os.makedirs(data_dir, exist_ok=True)
+        self.tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
+        self.tokenizer.pad_token = self.tokenizer.eos_token  # Add padding token
+
+        self.prepare_data()
+        self.setup()
+
+    def prepare_data(self):
+        # Ensure the data file exists
+        if not os.path.exists(self.data_file):
+            raise FileNotFoundError(f"{self.data_file} not found. Please download the dataset from Kaggle and place it in the data directory.")
+
+    def setup(self, stage=None):
+        dataset = JokesDataset(file_path=self.data_file, max_length=self.max_length)
+        train_size = int(self.train_val_test_split[0] * len(dataset))
+        val_size = int(self.train_val_test_split[1] * len(dataset))
+        test_size = len(dataset) - train_size - val_size
+        self.train_dataset, self.val_dataset, self.test_dataset = random_split(dataset, [train_size, val_size, test_size])
+        self.collate_fn = TextCollate(self.tokenizer, max_length=self.max_length)
+    
+    def train_dataloader(self):
+        return DataLoader(self.train_dataset, batch_size=self.batch_size, collate_fn=self.collate_fn, shuffle=True)
+    
+    def val_dataloader(self):
+        return DataLoader(self.val_dataset, batch_size=self.batch_size, collate_fn=self.collate_fn)
+    
+    def test_dataloader(self):
+        return DataLoader(self.test_dataset, batch_size=self.batch_size, collate_fn=self.collate_fn)
+
