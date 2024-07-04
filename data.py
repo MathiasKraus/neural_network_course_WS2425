@@ -48,6 +48,9 @@ class CatDogDataModule(LightningDataModule):
         self.data_path = Path(dl_path).joinpath(self.dataset_name)
         self.DATA_URL = "https://storage.googleapis.com/mledu-datasets/cats_and_dogs_filtered.zip"
 
+        self.prepare_data()
+        self.setup()
+
     def prepare_data(self):
         """Download images and prepare image datasets."""
         if self.DATA_URL:
@@ -91,6 +94,9 @@ class MNISTDataModule(LightningDataModule):
         self.dl_path = dl_path
         self.class_names = class_names
         self.batch_size = batch_size
+
+        self.prepare_data()
+        self.setup()
 
     def prepare_data(self, *args, **kwargs):
         pass
@@ -138,6 +144,9 @@ class VOCDataModule(LightningDataModule):
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
+        
+        self.prepare_data()
+        self.setup()
 
     def collate_fn(self, batch):
         images, targets = list(zip(*batch))
@@ -188,7 +197,7 @@ class VOCDataModule(LightningDataModule):
             'sheep': 17, 'sofa': 18, 'train': 19, 'tvmonitor': 20
         }
 
-    def get_idx_to_classx(self):
+    def get_idx_to_class(self):
         class_to_idx = self.get_class_to_idx()
         return dict(zip(class_to_idx.values(), class_to_idx.keys()))
 

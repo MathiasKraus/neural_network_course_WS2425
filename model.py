@@ -170,8 +170,8 @@ class FasterRCNN(LightningModule):
         self.milestones = milestones
         self.map_metric = MeanAveragePrecision()
 
-        # Load a pre-trained Faster R-CNN model with a ResNet-50 backbone
-        self.model = models.detection.fasterrcnn_resnet50_fpn(pretrained=True)
+        # Load a pre-trained Faster R-CNN model with a ResNet-50 backbone or similar
+        self.model = models.detection.fasterrcnn_mobilenet_v3_large_320_fpn(pretrained=True)
 
         # Get the number of input features for the classifier
         in_features = self.model.roi_heads.box_predictor.cls_score.in_features
