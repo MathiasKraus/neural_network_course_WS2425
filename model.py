@@ -5,6 +5,7 @@ from torch.optim.lr_scheduler import MultiStepLR
 from torchvision import models
 from torchmetrics import Accuracy
 from torchmetrics.detection.mean_ap import MeanAveragePrecision
+from transformers import GPT2LMHeadModel, GPT2Tokenizer, get_linear_schedule_with_warmup
 import logging
 import torch
 
@@ -145,7 +146,7 @@ class GeneralVisionClassifier(LightningModule):
                 "frequency": 1
             }
         }
-
+        
 
 class FasterRCNN(LightningModule):
     def __init__(
@@ -226,5 +227,50 @@ class FasterRCNN(LightningModule):
                 "scheduler": scheduler,
                 "interval": "epoch",
                 "frequency": 1
+            }
+        }
+
+
+class GPT2FineTuner(LightningModule):
+    def __init__(self, lr=5e-5, num_train_steps=10000, num_warmup_steps=500):
+        super().__init__()
+        self.model = GPT2LMHeadModel.from_pretrained('gpt2')
+        self.tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
+        self.tokenizer.pad_token = self.tokenizer.eos_token
+        self.lr = lr
+        self.num_train_steps = num_train_steps
+        self.num_warmup_steps = num_warmup_steps
+    
+    def forward(self, input_ids, attention_mask):
+        return self.model(input_ids=input_ids, attention_mask=attention_mask, labels=input_ids)
+    
+    def training_step(self, batch, batch_idx):
+        input_ids, attention_mask = batch
+        outputs = self(input_ids, attention_mask)
+        loss = outputs.loss
+        self.log('train_loss', loss, prog_bar=True)
+        return loss
+    
+    def validation_step(self, batch, batch_idx):
+        input_ids, attention_mask = batch
+        outputs = self(input_ids, attention_mask)
+        loss = outputs.loss
+        self.log('val_loss', loss, prog_bar=True)
+        return loss
+    
+    def configure_optimizers(self):
+        optimizer = optim.AdamW(self.parameters(), lr=self.lr)
+        scheduler = get_linear_schedule_with_warmup(
+            optimizer,
+            num_warmup_steps=self.num_warmup_steps,
+            num_training_steps=self.num_train_steps
+        )
+        return {
+            'optimizer': optimizer,
+            'lr_scheduler': {
+                'scheduler': scheduler,
+                'monitor': 'val_loss',
+                'interval': 'step',
+                'frequency': 1
             }
         }
