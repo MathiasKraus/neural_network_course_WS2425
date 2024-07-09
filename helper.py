@@ -7,6 +7,10 @@ import seaborn as sns
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 from lightning.pytorch.callbacks import TQDMProgressBar
 
+#################
+#### General ####
+#################
+
 class MyProgressBar(TQDMProgressBar):
     def init_validation_tqdm(self):
         bar = super().init_validation_tqdm()
@@ -37,6 +41,51 @@ def get_batch(data_module, val=False):
         return next(iter(data_module.val_dataloader()))
     else:
         return next(iter(data_module.train_dataloader()))
+
+def show_confusion_matrix(model, data_module):
+    model.eval()  # Set the model to evaluation mode
+    all_preds = []
+    all_labels = []
+
+    with torch.no_grad():
+        for images, labels in data_module.val_dataloader():
+            outputs = model(images)
+            if outputs.shape[1] == 1 or outputs.dim() == 1:
+                preds = torch.round(torch.sigmoid(outputs).squeeze())
+            else:
+                _, preds = torch.max(outputs, 1)
+            all_preds.extend(preds.cpu().numpy())
+            all_labels.extend(labels.cpu().numpy())
+
+    # Compute the confusion matrix
+    cm = confusion_matrix(all_labels, all_preds)
+    
+    # Find the most confused classes
+    cm_no_diag = cm.copy()
+    np.fill_diagonal(cm_no_diag, 0)
+    max_confusions = cm_no_diag.max(axis=1)
+    max_confusions_indices = cm_no_diag.argmax(axis=1)
+
+    # Plot the confusion matrix
+    plt.figure(figsize=(7, 7))
+    ax = sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', cbar=False, linewidths=.5)
+
+    # Highlight the most confused classes
+    for i in range(len(data_module.class_names)):
+        if max_confusions[i] > 0:
+            ax.add_patch(plt.Rectangle((max_confusions_indices[i], i), 1, 1, fill=False, edgecolor='red', lw=3))
+    
+    plt.title('Confusion Matrix')
+    plt.xlabel('Predicted Label')
+    plt.ylabel('True Label')
+    ax.set_xticklabels(data_module.class_names, rotation=45)
+    ax.set_yticklabels(data_module.class_names, rotation=0)
+    plt.show()
+
+
+#################
+#### Vision #####
+#################
 
 def show_image(x):
     """
@@ -179,48 +228,7 @@ def show_worst_image_predictions(model, data_module, n=5):
     plt.tight_layout()
     plt.show()
 
-
-def show_confusion_matrix(model, data_module):
-    model.eval()  # Set the model to evaluation mode
-    all_preds = []
-    all_labels = []
-
-    with torch.no_grad():
-        for images, labels in data_module.val_dataloader():
-            outputs = model(images)
-            if outputs.shape[1] == 1 or outputs.dim() == 1:
-                preds = torch.round(torch.sigmoid(outputs).squeeze())
-            else:
-                _, preds = torch.max(outputs, 1)
-            all_preds.extend(preds.cpu().numpy())
-            all_labels.extend(labels.cpu().numpy())
-
-    # Compute the confusion matrix
-    cm = confusion_matrix(all_labels, all_preds)
-    
-    # Find the most confused classes
-    cm_no_diag = cm.copy()
-    np.fill_diagonal(cm_no_diag, 0)
-    max_confusions = cm_no_diag.max(axis=1)
-    max_confusions_indices = cm_no_diag.argmax(axis=1)
-
-    # Plot the confusion matrix
-    plt.figure(figsize=(7, 7))
-    ax = sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', cbar=False, linewidths=.5)
-
-    # Highlight the most confused classes
-    for i in range(len(data_module.class_names)):
-        if max_confusions[i] > 0:
-            ax.add_patch(plt.Rectangle((max_confusions_indices[i], i), 1, 1, fill=False, edgecolor='red', lw=3))
-    
-    plt.title('Confusion Matrix')
-    plt.xlabel('Predicted Label')
-    plt.ylabel('True Label')
-    ax.set_xticklabels(data_module.class_names, rotation=45)
-    ax.set_yticklabels(data_module.class_names, rotation=0)
-    plt.show()
-
-def convert_predictions(predictions, idx_to_class, threshold=0.5):
+def convert_predictions_bboxes(predictions, idx_to_class, threshold=0.5):
     converted_predictions = []
     for pred in predictions:
         boxes = pred['boxes']
@@ -244,3 +252,29 @@ def convert_predictions(predictions, idx_to_class, threshold=0.5):
                 })
     
     return converted_predictions
+
+
+##################
+##### Text #######
+##################
+
+def generate_text(model, tokenizer, starting_text, max_length=100):
+    # Tokenize the starting text
+    input_ids = tokenizer.encode(starting_text, return_tensors='pt')
+    
+    # Create attention mask
+    attention_mask = torch.ones(input_ids.shape, dtype=torch.long, device=input_ids.device)
+    
+    # Generate text
+    with torch.no_grad():
+        output = model.model.generate(
+            input_ids,
+            attention_mask=attention_mask,
+            max_length=max_length,
+            num_return_sequences=1,
+            pad_token_id=tokenizer.eos_token_id
+        )
+    
+    # Decode the generated text
+    generated_text = tokenizer.decode(output[0], skip_special_tokens=True)
+    return generated_text
