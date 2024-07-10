@@ -30,11 +30,14 @@ class MyProgressBar(TQDMProgressBar):
             bar.disable = True
         return bar
 
-def get_sample(data_module, val=False, idx=0):
+def get_sample(data_module, val=False, idx=None):
     if val == True:
-        return data_module.val_dataloader().dataset.__getitem__(idx)
+        dataloader = data_module.val_dataloader()
     else:
-        return data_module.train_dataloader().dataset.__getitem__(idx)
+        dataloader = data_module.train_dataloader()
+    if idx is None:
+        idx = np.random.randint(0, len(dataloader.dataset) - 1)
+    return dataloader.dataset[idx]
 
 def get_batch(data_module, val=False):
     if val == True:

@@ -40,8 +40,8 @@ class VisionClassifier(LightningModule):
 
         self.__build_model()
 
-        task_type = "binary" if num_classes == 2 else "multiclass"
         self.loss_func = nn.CrossEntropyLoss() if num_classes > 2 else nn.BCEWithLogitsLoss()
+        task_type = "binary" if num_classes == 2 else "multiclass"
         self.train_acc = Accuracy(task=task_type, num_classes=num_classes)
         self.val_acc = Accuracy(task=task_type, num_classes=num_classes)
 
@@ -83,10 +83,23 @@ class VisionClassifier(LightningModule):
         x = self.feature_extractor(x)
         x = x.view(x.size(0), -1)  # Flatten the tensor
         return self.fc(x)
-
+    
+    def predict(self, x):
+        self.eval()
+        # Ensure no gradients are computed
+        with torch.no_grad():
+            y_logits = self.forward(x)
+        if self.num_classes == 2:
+            y_pred = torch.sigmoid(y_logits)
+            y_pred = (y_pred > 0.5).int().item()
+        else:
+            y_pred = F.softmax(y_logits, dim=1)
+            y_pred = torch.argmax(y_pred).item()
+        return y_pred
+    
     def training_step(self, batch, batch_idx):
         x, y = batch
-        y_logits = self.forward(x)
+        y_logits = self.forward(x).squeeze()
         y_true = y.float() if self.num_classes == 2 else y
         train_loss = self.loss_func(y_logits, y_true)
 
@@ -97,7 +110,7 @@ class VisionClassifier(LightningModule):
 
     def validation_step(self, batch, batch_idx):
         x, y = batch
-        y_logits = self.forward(x)
+        y_logits = self.forward(x).squeeze()
         y_true = y.float() if self.num_classes == 2 else y
 
         y_pred = torch.sigmoid(y_logits) if self.num_classes == 2 else F.softmax(y_logits, dim=1)
@@ -158,8 +171,14 @@ class ObjectDetector(LightningModule):
         self.train_loss = 0.
 
     def forward(self, x):
-        self.model.eval()
         return self.model(x)
+
+    def predict(self, x):
+        self.eval()
+        # Ensure no gradients are computed
+        with torch.no_grad():
+            predictions = self.forward(x)
+        return predictions
     
     def training_step(self, batch, batch_idx):
         images, targets = batch
@@ -210,6 +229,9 @@ class GPT2(LightningModule):
         self.lr = lr
         self.num_train_steps = num_train_steps
         self.num_warmup_steps = num_warmup_steps
+
+    def predict(self):
+        pass
     
     def forward(self, input_ids, attention_mask):
         return self.model(input_ids=input_ids, attention_mask=attention_mask, labels=input_ids)
