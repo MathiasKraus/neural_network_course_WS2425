@@ -103,6 +103,9 @@ class VisionClassifier(LightningModule):
         y_true = y.float() if self.num_classes == 2 else y
         train_loss = self.loss_func(y_logits, y_true)
 
+        # Log the training loss
+        self.log("train_loss", train_loss, on_epoch=True, prog_bar=True, logger=True)
+
         y_pred = torch.sigmoid(y_logits) if self.num_classes == 2 else F.softmax(y_logits, dim=1)
         self.train_acc.update(y_pred, y_true)
 
@@ -112,6 +115,10 @@ class VisionClassifier(LightningModule):
         x, y = batch
         y_logits = self.forward(x).squeeze()
         y_true = y.float() if self.num_classes == 2 else y
+        val_loss = self.loss_func(y_logits, y_true)
+
+        # Log the val loss
+        self.log("val_loss", val_loss, on_epoch=True, prog_bar=True, logger=True)
 
         y_pred = torch.sigmoid(y_logits) if self.num_classes == 2 else F.softmax(y_logits, dim=1)
         self.val_acc.update(y_pred, y.int())
@@ -120,12 +127,12 @@ class VisionClassifier(LightningModule):
 
     def on_validation_epoch_end(self):
         val_acc = self.val_acc.compute()
-        self.log("val_acc", val_acc, prog_bar=True)
+        self.log("val_acc_epoch", val_acc, prog_bar=True, logger=True)
         self.val_acc.reset()
 
     def on_train_epoch_end(self):
         train_acc = self.train_acc.compute()
-        self.log("train_acc", train_acc, prog_bar=True)
+        self.log("train_acc_epoch", train_acc, prog_bar=True, logger=True)
         self.train_acc.reset()
 
     def configure_optimizers(self):
@@ -202,11 +209,11 @@ class ObjectDetector(LightningModule):
 
     def on_validation_epoch_end(self):
         map_result = self.val_map_metric.compute()
-        self.log('val_map', map_result['map'], prog_bar=True)
+        self.log('val_map_epoch', map_result['map'], prog_bar=True, logger=True)
         self.val_map_metric.reset()
 
     def on_train_epoch_end(self):
-        self.log('train_loss', self.train_loss, prog_bar=True)
+        self.log('train_loss_epoch', self.train_loss, prog_bar=True, logger=True)
         self.train_loss = 0.
 
     def configure_optimizers(self):

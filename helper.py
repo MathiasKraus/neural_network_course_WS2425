@@ -5,30 +5,10 @@ import numpy as np
 import torch
 import seaborn as sns
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
-from lightning.pytorch.callbacks import TQDMProgressBar
 
 #################
 #### General ####
 #################
-
-class MyProgressBar(TQDMProgressBar):
-    def init_validation_tqdm(self):
-        bar = super().init_validation_tqdm()
-        if not sys.stdout.isatty():
-            bar.disable = True
-        return bar
-
-    def init_predict_tqdm(self):
-        bar = super().init_predict_tqdm()
-        if not sys.stdout.isatty():
-            bar.disable = True
-        return bar
-
-    def init_test_tqdm(self):
-        bar = super().init_test_tqdm()
-        if not sys.stdout.isatty():
-            bar.disable = True
-        return bar
 
 def get_sample(data_module, val=False, idx=None):
     if val == True:
