@@ -25,13 +25,13 @@ def get_batch(data_module, val=False):
     else:
         return next(iter(data_module.train_dataloader()))
 
-def show_confusion_matrix(model, data_module):
+def show_confusion_matrix(model, dataloader):
     model.eval()  # Set the model to evaluation mode
     all_preds = []
     all_labels = []
 
     with torch.no_grad():
-        for images, labels in data_module.val_dataloader():
+        for images, labels in dataloader:
             outputs = model(images)
             if outputs.shape[1] == 1 or outputs.dim() == 1:
                 preds = torch.round(torch.sigmoid(outputs).squeeze())
@@ -53,16 +53,9 @@ def show_confusion_matrix(model, data_module):
     plt.figure(figsize=(7, 7))
     ax = sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', cbar=False, linewidths=.5)
 
-    # Highlight the most confused classes
-    for i in range(len(data_module.class_names)):
-        if max_confusions[i] > 0:
-            ax.add_patch(plt.Rectangle((max_confusions_indices[i], i), 1, 1, fill=False, edgecolor='red', lw=3))
-    
     plt.title('Confusion Matrix')
     plt.xlabel('Predicted Label')
     plt.ylabel('True Label')
-    ax.set_xticklabels(data_module.class_names, rotation=45)
-    ax.set_yticklabels(data_module.class_names, rotation=0)
     plt.show()
 
 
@@ -164,12 +157,12 @@ def show_image_and_bounding_box(x, bboxes=None):
     plt.axis('off')
     plt.show()
 
-def show_worst_image_predictions(model, data_module, n=5):
+def show_worst_image_predictions(model, dataloader, n=5):
     model.eval()  # Set the model to evaluation mode
     misclassified = {}
 
     with torch.no_grad():
-        for images, labels in data_module.val_dataloader():
+        for images, labels in dataloader:
             outputs = model(images)
             if outputs.shape[1] == 1 or outputs.dim() == 1:
                 predicted = torch.sigmoid(outputs).squeeze()
