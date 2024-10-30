@@ -3,7 +3,7 @@ from torch import nn, optim
 from torch.nn import functional as F
 from torch.optim.lr_scheduler import MultiStepLR
 from torchvision import models
-from torchmetrics import Accuracy
+from torchmetrics.classification import BinaryAccuracy, MulticlassAccuracy
 from torchmetrics.detection.mean_ap import MeanAveragePrecision
 from transformers import GPT2LMHeadModel, GPT2Tokenizer, get_linear_schedule_with_warmup
 import logging
@@ -41,9 +41,12 @@ class VisionClassifier(LightningModule):
         self.__build_model()
 
         self.loss_func = nn.CrossEntropyLoss() if num_classes > 2 else nn.BCEWithLogitsLoss()
-        task_type = "binary" if num_classes == 2 else "multiclass"
-        self.train_acc = Accuracy(task=task_type, num_classes=num_classes)
-        self.val_acc = Accuracy(task=task_type, num_classes=num_classes)
+        if num_classes == 2:
+            self.train_acc = BinaryAccuracy()
+            self.val_acc = BinaryAccuracy()
+        else:
+            self.train_acc = MulticlassAccuracy(num_classes=num_classes)
+            self.val_acc = MulticlassAccuracy(num_classes=num_classes)
 
     def __build_model(self):
         """Define model layers & loss."""
@@ -84,18 +87,9 @@ class VisionClassifier(LightningModule):
         x = x.view(x.size(0), -1)  # Flatten the tensor
         return self.fc(x)
     
-    def predict(self, x):
-        self.eval()
-        # Ensure no gradients are computed
-        with torch.no_grad():
-            y_logits = self.forward(x)
-        if self.num_classes == 2:
-            y_pred = torch.sigmoid(y_logits)
-            y_pred = (y_pred > 0.5).int().item()
-        else:
-            y_pred = F.softmax(y_logits, dim=1)
-            y_pred = torch.argmax(y_pred).item()
-        return y_pred
+    def predict_step(self, batch, batch_idx):
+        x, y = batch
+        return self(x)
     
     def training_step(self, batch, batch_idx):
         x, y = batch
