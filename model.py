@@ -97,9 +97,10 @@ class VisionClassifier(LightningModule):
         y_true = y.float() if self.num_classes == 2 else y
         train_loss = self.loss_func(y_logits, y_true)
 
-        # Log the training loss
-        self.log("train_loss", train_loss, on_epoch=True, prog_bar=True, logger=True)
+        # Log the training loss per batch
+        self.log("train_loss", train_loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
 
+        # Compute predictions and update accuracy metric
         y_pred = torch.sigmoid(y_logits) if self.num_classes == 2 else F.softmax(y_logits, dim=1)
         self.train_acc.update(y_pred, y_true)
 
@@ -111,23 +112,27 @@ class VisionClassifier(LightningModule):
         y_true = y.float() if self.num_classes == 2 else y
         val_loss = self.loss_func(y_logits, y_true)
 
-        # Log the val loss
-        self.log("val_loss", val_loss, on_epoch=True, prog_bar=True, logger=True)
+        # Log the validation loss per batch
+        self.log("val_loss", val_loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
 
+        # Compute predictions and update accuracy metric
         y_pred = torch.sigmoid(y_logits) if self.num_classes == 2 else F.softmax(y_logits, dim=1)
-        self.val_acc.update(y_pred, y.int())
+        self.val_acc.update(y_pred, y_true)
 
-        return {"val_loss": self.loss_func(y_logits, y_true)}
-
-    def on_validation_epoch_end(self):
-        val_acc = self.val_acc.compute()
-        self.log("val_acc_epoch", val_acc, prog_bar=True, logger=True)
-        self.val_acc.reset()
+        return val_loss
 
     def on_train_epoch_end(self):
+        # Compute and log epoch accuracy for training
         train_acc = self.train_acc.compute()
-        self.log("train_acc_epoch", train_acc, prog_bar=True, logger=True)
+        self.log("train_acc", train_acc, prog_bar=True, logger=True)
         self.train_acc.reset()
+
+    def on_validation_epoch_end(self):
+        # Compute and log epoch accuracy for validation
+        val_acc = self.val_acc.compute()
+        self.log("val_acc", val_acc, prog_bar=True, logger=True)
+        self.val_acc.reset()
+
 
     def configure_optimizers(self):
         optimizer = optim.SGD(self.parameters(), lr=self.lr, momentum=0.9, weight_decay=0.0005)
