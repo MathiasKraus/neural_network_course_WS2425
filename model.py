@@ -15,26 +15,20 @@ class VisionClassifier(LightningModule):
     def __init__(
         self,
         backbone: str = "resnet18",
-        milestones: tuple = (2, 4),
         lr: float = 1e-3,
-        lr_scheduler_gamma: float = 1e-1,
         num_classes: int = 2,
     ):
         """VisionClassifier.
 
         Args:
             backbone: Name (as in ``torchvision.models``) of the feature extractor.
-            milestones: List of two epochs milestones.
             lr: Initial learning rate.
-            lr_scheduler_gamma: Factor by which the learning rate is reduced at each milestone.
             num_classes: Number of classes in the dataset.
         """
         super().__init__()
 
         self.backbone = backbone
-        self.milestones = milestones
         self.lr = lr
-        self.lr_scheduler_gamma = lr_scheduler_gamma
         self.num_classes = num_classes
 
         self.__build_model()
@@ -132,16 +126,8 @@ class VisionClassifier(LightningModule):
 
 
     def configure_optimizers(self):
-        optimizer = optim.SGD(self.parameters(), lr=self.lr, momentum=0.9, weight_decay=0.0005)
-        scheduler = MultiStepLR(optimizer, milestones=self.milestones, gamma=self.lr_scheduler_gamma)
-        return {
-            "optimizer": optimizer,
-            "lr_scheduler": {
-                "scheduler": scheduler,
-                "interval": "epoch",
-                "frequency": 1
-            }
-        }
+        optimizer = optim.Adam(self.parameters(), lr=self.lr)
+        return optimizer
         
 
 class ObjectDetector(LightningModule):
