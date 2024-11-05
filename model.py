@@ -96,7 +96,6 @@ class VisionClassifier(LightningModule):
         y_true = y.float() if self.num_classes == 2 else y
         train_loss = self.loss_func(y_logits, y_true)
 
-        # Log the training loss per batch
         self.log("train_loss", train_loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
 
         # Compute predictions and update accuracy metric
@@ -111,7 +110,6 @@ class VisionClassifier(LightningModule):
         y_true = y.float() if self.num_classes == 2 else y
         val_loss = self.loss_func(y_logits, y_true)
 
-        # Log the validation loss per batch
         self.log("val_loss", val_loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
 
         # Compute predictions and update accuracy metric
