@@ -30,7 +30,6 @@ class VisionClassifier(LightningModule):
             num_classes: Number of classes in the dataset.
         """
         super().__init__()
-        self.save_hyperparameters()
 
         self.backbone = backbone
         self.milestones = milestones
