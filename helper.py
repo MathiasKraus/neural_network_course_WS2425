@@ -5,6 +5,7 @@ import numpy as np
 import torch
 import seaborn as sns
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+from sklearn.manifold import TSNE
 
 #################
 #### General ####
@@ -56,6 +57,46 @@ def show_confusion_matrix(model, dataloader):
     plt.title('Confusion Matrix')
     plt.xlabel('Predicted Label')
     plt.ylabel('True Label')
+    plt.show()
+
+def visualize_embedding(embedding_layer, n, labels):
+    """
+    Visualize an embedding layer using t-SNE.
+    
+    Args:
+        embedding_layer (torch.nn.Embedding): The embedding layer to visualize.
+        n (int): Number of points to randomly visualize.
+        labels (list or array-like): Corresponding text labels for the embeddings.
+    """
+    # Get the embedding weights
+    embeddings = embedding_layer.weight.detach().cpu().numpy()
+    
+    # Ensure labels match the size of embeddings
+    if len(labels) != embeddings.shape[0]:
+        raise ValueError("The number of labels must match the number of embeddings.")
+    
+    # Randomly sample n points
+    indices = np.random.choice(embeddings.shape[0], size=n, replace=False)
+    sampled_embeddings = embeddings[indices]
+    sampled_labels = np.array(labels)[indices]
+    
+    # Reduce dimensionality with t-SNE
+    tsne = TSNE(n_components=2, random_state=42)
+    reduced_embeddings = tsne.fit_transform(sampled_embeddings)
+    
+    # Plot the reduced embeddings
+    plt.figure(figsize=(12, 10))
+    plt.scatter(reduced_embeddings[:, 0], reduced_embeddings[:, 1], s=50, alpha=0.7)
+    
+    # Annotate each point with its label
+    for i, label in enumerate(sampled_labels):
+        plt.annotate(label, (reduced_embeddings[i, 0], reduced_embeddings[i, 1]),
+                     fontsize=9, alpha=0.8, ha='right', va='bottom')
+    
+    plt.title(f"t-SNE Visualization of Embedding Layer ({n} points)")
+    plt.xlabel("t-SNE Dimension 1")
+    plt.ylabel("t-SNE Dimension 2")
+    plt.grid(True)
     plt.show()
 
 
